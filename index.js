@@ -83,7 +83,7 @@ const client = new MongoClient(uri, {
 
 
 let dbReady = client.connect().then(() => {
-  console.log('Mongo connected');
+  // console.log('Mongo connected');
 });
 
 // middleware: wait for connection before handling any request

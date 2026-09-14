@@ -558,6 +558,7 @@ app.post('/create-checkout-session', async (req, res) => {
     },
 
     success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-successs?session_id={CHECKOUT_SESSION_ID}`,
+    
     // CHECKOUT_SESSION_ID -- Stripe replaces this automatically with the actual Checkout Session ID after successful payment or creating a session.
     cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-canceled`,
 

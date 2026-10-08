@@ -363,6 +363,87 @@ app.delete('/delete-rider/:id', verifyToken, verifyAdmin, async (req, res) => {
   res.json(result)
 }) //Done
 
+app.get('/rider-stat', async (req, res) => {
+
+  const email = req.query.email
+
+  const pipeline = [
+    {
+      $match: {
+        rider_email: email
+      }
+    },
+
+    {
+      $facet: {
+
+        totaParcel: [
+          {
+            $count: "count"
+          }
+        ],
+
+        assigned: [
+          {
+            $match: {
+              deliveryStatus: "driver_assigned"
+            }
+          },
+          {
+            $count: "count"
+          }
+        ],
+
+        delivered: [
+          {
+            $match: {
+              deliveryStatus: "marked_as_delivered"
+            }
+          },
+          {
+            $count: "count"
+          }
+        ],
+
+        myEarning: [
+          {
+            $match: {
+              deliveryStatus: "marked_as_delivered"
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalEarning: {
+
+                $sum: {
+                  $cond: [
+                    {
+                      $eq : [ '$reciverDistrict', '$senderDistrict' ]
+                    },
+                    {
+                      $multiply: [ '$cost', 0.4 ]
+                    },
+                    {
+                       $multiply: [ '$cost', 0.5 ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+
+      }
+    }
+  ]
+
+  const result = await parcelCollection.aggregate(pipeline).toArray()
+
+  res.send(result)
+
+})
+
 
 
 
@@ -523,6 +604,115 @@ app.delete('/delete-parcels/:id', async (req, res) => {
   res.send(result)
 }) // Done
 
+app.get('/admin-dash', async (req, res) => {
+
+  const pipeline = [
+    {
+      $facet: {
+
+        totalParcels: [
+          {
+            $count: "count"
+          }
+        ],
+
+        deliveredParcels: [
+          {
+            $match: {
+              deliveryStatus: "marked_as_delivered"
+            }
+          },
+          {
+            $count: "count"
+          }
+        ],
+
+        pendingPickup: [
+          {
+            $match: {
+              deliveryStatus: {
+                $exists: true,
+                $ne: "marked_as_delivered"
+              }
+            }
+          },
+          {
+            $count: "count"
+          }
+        ],
+
+        allRevenu: [
+          {
+            $match: {
+              deliveryStatus: {
+                $exists: true
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              total: {
+                $sum: "$cost"
+              }
+            }
+          }
+        ]
+      }
+    },
+
+    // Convert the arrays from $facet into normal values
+    {
+      $project: {
+
+        totalParcels: {
+          $ifNull: [
+            {
+              $arrayElemAt: ["$totalParcels.count", 0]
+            },
+            0
+          ]
+        },
+
+        deliveredParcels: {
+          $ifNull: [
+            {
+              $arrayElemAt: ["$deliveredParcels.count", 0]
+            },
+            0
+          ]
+        },
+
+        pendingPickuppppp: {
+          $ifNull: [
+            {
+              $arrayElemAt: ["$pendingPickup.count", 0]
+            },
+            0
+          ]
+        },
+
+        allRevenu: {
+          $ifNull: [
+            {
+              $arrayElemAt: ["$allRevenu.total", 0]
+            },
+            0
+          ]
+        }
+      }
+    }
+  ];
+
+
+  const result = await parcelCollection.aggregate(pipeline).toArray()
+  const totalUsers = await userCollection.countDocuments();
+  const totalRiders = await riderCollection.countDocuments();
+
+  res.send({ result, totalUsers, totalRiders });
+
+})
+
 
 
 
@@ -530,6 +720,7 @@ app.delete('/delete-parcels/:id', async (req, res) => {
 
 // Payment related
 app.post('/create-checkout-session', async (req, res) => {
+  console.log('req --- comming...')
   const paymentInfo = req.body
   const amount = parseInt(paymentInfo.cost) * 100
 
@@ -558,7 +749,7 @@ app.post('/create-checkout-session', async (req, res) => {
     },
 
     success_url: `${process.env.SITE_DOMAIN_APP}/dashboard/payment-successs?session_id={CHECKOUT_SESSION_ID}`,
-    
+
     // CHECKOUT_SESSION_ID -- Stripe replaces this automatically with the actual Checkout Session ID after successful payment or creating a session.
     cancel_url: `${process.env.SITE_DOMAIN_APP}/dashboard/payment-canceled`,
 
